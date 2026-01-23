@@ -3,9 +3,9 @@ import fs from "fs";
 import { TermData } from "../types";
 import { writeFile } from "../utils";
 
-export const dataPath = path.resolve(__dirname, "..", "..","..", "data");
+export const dataPath = path.resolve(__dirname, "..", "..", "..", "data");
 if (!fs.existsSync(dataPath)) {
-  fs.mkdirSync(dataPath);
+  fs.mkdirSync(dataPath, { recursive: true });
 }
 
 export function write(term: string, termData: TermData): Promise<void> {
