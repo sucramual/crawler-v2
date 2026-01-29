@@ -53,7 +53,7 @@ const ALWAYS_SCRAPE_CURRENT_TERM: boolean =
 
 // IO Concurrency to download files using.
 // This is a completely arbitrary number.
-const DETAILS_CONCURRENCY = getIntConfig("DETAILS_CONCURRENCY") ?? 128;
+const DETAILS_CONCURRENCY = getIntConfig("DETAILS_CONCURRENCY") ?? 8;
 
 async function main(): Promise<void> {
   const rawLogFormat = process.env.LOG_FORMAT;
@@ -241,26 +241,33 @@ async function crawlTerm(
     { ...spanFields, concurrency: DETAILS_CONCURRENCY },
     async () =>
       asyncPool(DETAILS_CONCURRENCY, allCourseIds, async (courseId) => {
-        const [coursePrereqs, courseCoreqs, courseDescription] = await span(
-          `crawling individual course`,
-          {
-            ...spanFields,
-            courseId,
-          },
-          async (setCompletionFields) => {
-            const [htmlLength, prereqs, coreqs, description] =
-              await crawlCourseDetails(term, courseId);
-            setCompletionFields({
-              htmlLength,
-              hasDescription: description != null,
-            });
-            return [prereqs, coreqs, description];
-          }
-        );
+        try {
+          const [coursePrereqs, courseCoreqs, courseDescription] = await span(
+            `crawling individual course`,
+            {
+              ...spanFields,
+              courseId,
+            },
+            async (setCompletionFields) => {
+              const [htmlLength, prereqs, coreqs, description] =
+                await crawlCourseDetails(term, courseId);
+              setCompletionFields({
+                htmlLength,
+                hasDescription: description != null,
+              });
+              return [prereqs, coreqs, description];
+            }
+          );
 
-        allPrereqs[courseId] = coursePrereqs;
-        allCoreqs[courseId] = courseCoreqs;
-        allDescriptions[courseId] = courseDescription;
+          allPrereqs[courseId] = coursePrereqs;
+          allCoreqs[courseId] = courseCoreqs;
+          allDescriptions[courseId] = courseDescription;
+        } catch (err) {
+          warn(`failed to crawl course; continuing`, { courseId, term });
+          allPrereqs[courseId] = [];
+          allCoreqs[courseId] = [];
+          allDescriptions[courseId] = null;
+        }
       })
   );
 
